@@ -1,5 +1,6 @@
 const puppeteer = require('puppeteer');
 const { OpenAI } = require('openai');
+const { MAX_LENGTH_FOR_WEBPAGE_CONTENT } = require('../util/const');
 const openai = new OpenAI({ apiKey: process.env.OPEN_AI_API_KEY });
 
 exports.checkWebpageCompliance = async function (webpageUrl) {
@@ -10,24 +11,40 @@ exports.checkWebpageCompliance = async function (webpageUrl) {
   const webpageContent = await page.evaluate(() => document.body.innerText);
   await browser.close();
 
-  const {status, code, data, message} = await getAIResponse(webpageContent)
-  if(!status){
-    return { status, code, message }
-  }
-  return { status: true, code: 200, data }
-}
-
-async function getAIResponse(webpageContent) {
-  try {
-    // Use GPT-3 to check compliance
+  const substrings = splitTextWithNewline(webpageContent, MAX_LENGTH_FOR_WEBPAGE_CONTENT)
+  const promises = substrings.map(str => {
     const config = {
       model: 'text-davinci-003', // Specify the GPT-3 model you want to use
-      prompt: `check the content in the webpage against a compliance policy and please find the particular words or sentences \nWebpage content: ${webpageContent}\n`
+      prompt: `check the content in the webpage against a compliance policy and please find the particular words or sentences \nWebpage content: ${str}\n`,
+      max_tokens: 100
     }
-    const response = await openai.completions.create(config);
+    return openai.completions.create(config);
+  })
+  const resolvedPromises = await Promise.all(promises)
+  const findings = resolvedPromises.map(res => res?.choices[0]?.text)
+  return { status: true, code: 200, data: findings }
+}
 
-    return {status: true, code: 200, data: response?.choices[0]?.text};
-  } catch (error) {
-    return {status: false, code: error?.status, message: error?.error?.message};
+function splitTextWithNewline(text, maxLength) {
+  const substrings = [];
+  let start = 0;
+
+  while (start < text.length) {
+    let end = start + maxLength;
+    if (end >= text.length) {
+      end = text.length;
+    } else {
+      // Find the last newline character within the range
+      const lastNewline = text.lastIndexOf('\n', end);
+      if (lastNewline !== -1) {
+        end = lastNewline
+      }
+    }
+
+    const substring = text.substring(start, end);
+    substrings.push(substring);
+    start = end;
   }
+
+  return substrings;
 }
