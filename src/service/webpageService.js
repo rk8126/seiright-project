@@ -15,7 +15,7 @@ exports.checkWebpageCompliance = async function (webpageUrl) {
   const promises = substrings.map(str => {
     const config = {
       model: 'text-davinci-003', // Specify the GPT-3 model you want to use
-      prompt: `check the content in the webpage against a compliance policy and please find the particular words or sentences \nWebpage content: ${str}\n`,
+      prompt: `check the content in the webpage against a compliance policy and identify any words or sentences that do not adhere to the compliance policy \nWebpage content: ${str}\n`,
       max_tokens: 100
     }
     return openai.completions.create(config);
@@ -37,7 +37,7 @@ function splitTextWithNewline(text, maxLength) {
       // Find the last newline character within the range
       const lastNewline = text.lastIndexOf('\n', end);
       if (lastNewline !== -1) {
-        end = lastNewline
+        end = lastNewline + 1
       }
     }
 
